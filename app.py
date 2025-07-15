@@ -5,15 +5,17 @@ import pandas as pd
 import nltk
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+
+nltk.download('vader_lexicon')
+nltk.download('punkt')
+nltk.download('stopwords')
+ 
 from nltk.sentiment import SentimentIntensityAnalyzer
 from nltk.corpus import stopwords
 from nltk import word_tokenize
 from wordcloud import WordCloud
 import string
-
-nltk.download('vader_lexicon')
-nltk.download('punkt')
-nltk.download('stopwords')
 
 # === Load Dataset ===
 @st.cache_data
