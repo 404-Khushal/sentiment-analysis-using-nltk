@@ -1,91 +1,105 @@
-# === DOWNLOAD NLTK RESOURCES ===
+# app.py
+
+import streamlit as st
+import pandas as pd
+import nltk
+import matplotlib.pyplot as plt
+import seaborn as sns
+from nltk.sentiment import SentimentIntensityAnalyzer
+from nltk.corpus import stopwords
+from nltk import word_tokenize
+from wordcloud import WordCloud
+import string
+
 nltk.download('vader_lexicon')
 nltk.download('punkt')
-nltk.download('averaged_perceptron_tagger')
-nltk.download('maxent_ne_chunker')
-nltk.download('words')
+nltk.download('stopwords')
 
-# === LOAD DATA ===
-df = pd.read_csv('Reviews.csv')
-df = df[['Id', 'Score', 'Text']].dropna().head(500)
-print(f"Dataset loaded: {df.shape}")
+# === Load Dataset ===
+@st.cache_data
+def load_data():
+    df = pd.read_csv('Reviews.csv')
+    df = df[['Id', 'Score', 'Text']].dropna().head(1000)
+    return df
 
-# === EXPLORATORY DATA ANALYSIS ===
-plt.figure(figsize=(8, 4))
-sns.countplot(data=df, x='Score', palette='viridis')
-plt.title('Count of Reviews by Star Rating')
-plt.xlabel('Star Rating')
-plt.ylabel('Count')
-plt.show()
+# === Clean Text ===
+def clean_text(text):
+    tokens = word_tokenize(text.lower())
+    words = [w for w in tokens if w.isalpha()]
+    stop_words = set(stopwords.words('english'))
+    cleaned = [w for w in words if w not in stop_words]
+    return ' '.join(cleaned)
 
-# === SAMPLE REVIEW: POS + NER ===
-sample_text = df['Text'].iloc[50]
-print("Sample review:\n", sample_text)
-
-tokens = word_tokenize(sample_text)
-tags = pos_tag(tokens)
-entities = ne_chunk(tags)
-
-print("\nPart-of-Speech Tags:")
-print(tags[:10])
-
-print("\nNamed Entities:")
-entities.pprint()
-
-# === VADER SENTIMENT ANALYSIS ===
-sia = SentimentIntensityAnalyzer()
-
-vader_results = []
-for _, row in tqdm(df.iterrows(), total=len(df)):
-    text = row['Text']
-    score = sia.polarity_scores(text)
-    compound = score['compound']
-    
-    sentiment = 'Neutral'
-    if compound >= 0.05:
+# === VADER Analysis ===
+def analyze_sentiment(text, sia):
+    score = sia.polarity_scores(text)['compound']
+    if score >= 0.05:
         sentiment = 'Positive'
-    elif compound <= -0.05:
+    elif score <= -0.05:
         sentiment = 'Negative'
-    
-    vader_results.append({
-        'Id': row['Id'],
-        'Text': text,
-        'Score': row['Score'],
-        'VADER_Compound': compound,
-        'VADER_Sentiment': sentiment
-    })
-
-vader_df = pd.DataFrame(vader_results)
-print("✅ VADER sentiment analysis complete.")
-vader_df.head()
-
-# === VISUALIZATION: VADER Compound Score by Star ===
-plt.figure(figsize=(8, 5))
-sns.barplot(data=vader_df, x='Score', y='VADER_Compound', palette='coolwarm')
-plt.title('Average VADER Compound Score by Star Rating')
-plt.xlabel('Star Rating')
-plt.ylabel('Compound Sentiment Score')
-plt.show()
-
-# === EXTREME CASES: Sentiment Mismatch ===
-print("\n1-Star Review with High Positive Sentiment:")
-print(vader_df.query("Score == 1").sort_values("VADER_Compound", ascending=False)['Text'].values[0])
-
-print("\n5-Star Review with High Negative Sentiment:")
-print(vader_df.query("Score == 5").sort_values("VADER_Compound")['Text'].values[0])
-
-# === CUSTOM USER INPUT ===
-def run_custom_vader():
-    print("\nCustom Sentiment Analyzer — type 'exit' to quit.")
-    while True:
-        text = input("\nEnter your review:\n")
-        if text.lower() == 'exit':
-            break
-        score = sia.polarity_scores(text)
-        compound = score['compound']
+    else:
         sentiment = 'Neutral'
-        if compound >= 0.05:
-            sentiment = 'Positive'
-        elif compound <= -0.05:
-            sentiment = 'Negative'
-        print(f"[VADER] Sentiment: {sentiment} | Compound Score: {compound:.3f}")
+    return sentiment, score
+
+# === Generate Word Cloud ===
+def generate_wordcloud(texts, title):
+    text_blob = ' '.join(texts)
+    wc = WordCloud(width=800, height=400, background_color='white').generate(text_blob)
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.imshow(wc, interpolation='bilinear')
+    ax.axis('off')
+    st.subheader(title)
+    st.pyplot(fig)
+
+# === Main App ===
+def main():
+    st.title("Sentiment Analysis with NLTK (VADER)")
+    st.markdown("Analyze Amazon reviews and your own custom input using NLTK’s rule-based sentiment engine (VADER).")
+
+    df = load_data()
+    sia = SentimentIntensityAnalyzer()
+
+    tab1, tab2, tab3 = st.tabs(["📊 Dataset Analysis", "📝 Custom Input", "☁️ Word Clouds"])
+
+    # === Tab 1: Dataset Analysis ===
+    with tab1:
+        st.subheader("Amazon Reviews Sample (500 rows)")
+        st.dataframe(df[['Score', 'Text']].sample(5))
+
+        st.subheader("Sentiment Breakdown")
+        results = []
+        for _, row in df.iterrows():
+            cleaned = clean_text(row['Text'])
+            sentiment, comp = analyze_sentiment(cleaned, sia)
+            results.append({'Id': row['Id'], 'Score': row['Score'], 'Cleaned_Text': cleaned, 'Sentiment': sentiment, 'Compound': comp})
+        results_df = pd.DataFrame(results)
+        st.bar_chart(results_df['Sentiment'].value_counts())
+
+        st.subheader("VADER Compound Score vs Star Rating")
+        sns.barplot(data=results_df, x='Score', y='Compound')
+        st.pyplot(plt.gcf())
+        plt.clf()
+
+    # === Tab 2: Custom Input ===
+    with tab2:
+        st.subheader("Type a Review to Analyze")
+        user_text = st.text_area("Enter your review here:", height=150)
+        if user_text:
+            cleaned = clean_text(user_text)
+            sentiment, score = analyze_sentiment(cleaned, sia)
+            st.markdown(f"**Cleaned Text:** {cleaned}")
+            st.success(f"Sentiment: **{sentiment}** | Compound Score: **{score:.3f}**")
+
+    # === Tab 3: Word Cloud ===
+    with tab3:
+        st.subheader("Word Clouds by Star Rating")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            generate_wordcloud(df[df['Score'] == 1]['Text'].apply(clean_text), "1-Star Reviews")
+
+        with col2:
+            generate_wordcloud(df[df['Score'] == 5]['Text'].apply(clean_text), "5-Star Reviews")
+
+if __name__ == "__main__":
+    main()
