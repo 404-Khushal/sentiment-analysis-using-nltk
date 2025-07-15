@@ -18,7 +18,7 @@ nltk.download('stopwords')
 # === Load Dataset ===
 @st.cache_data
 def load_data():
-    df = pd.read_csv('Reviews.csv')
+    df = pd.read_csv('./Reviews.csv')
     df = df[['Id', 'Score', 'Text']].dropna().head(1000)
     return df
 
