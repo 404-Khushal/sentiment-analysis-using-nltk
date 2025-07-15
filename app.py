@@ -1,12 +1,3 @@
-# === IMPORT LIBRARIES ===
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import nltk
-from nltk.sentiment import SentimentIntensityAnalyzer
-from nltk import word_tokenize, pos_tag, ne_chunk
-from tqdm.notebook import tqdm
-
 # === DOWNLOAD NLTK RESOURCES ===
 nltk.download('vader_lexicon')
 nltk.download('punkt')
@@ -15,7 +6,7 @@ nltk.download('maxent_ne_chunker')
 nltk.download('words')
 
 # === LOAD DATA ===
-df = pd.read_csv('/content/drive/MyDrive/Colab Notebooks/Reviews.csv')
+df = pd.read_csv('Reviews.csv')
 df = df[['Id', 'Score', 'Text']].dropna().head(500)
 print(f"Dataset loaded: {df.shape}")
 
